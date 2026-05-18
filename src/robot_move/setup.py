@@ -1,6 +1,25 @@
+from pathlib import Path
+
 from setuptools import find_packages, setup
 
 package_name = 'robot_move'
+
+
+def collect_data_files(source_dir: str, install_dir: str):
+    source_path = Path(source_dir)
+    data = []
+
+    for file_path in source_path.rglob('*'):
+        if not file_path.is_file():
+            continue
+        if '__pycache__' in file_path.parts or file_path.suffix == '.pyc':
+            continue
+
+        relative_parent = file_path.parent.relative_to(source_path)
+        target_dir = Path(install_dir) / relative_parent
+        data.append((str(target_dir), [str(file_path)]))
+
+    return data
 
 setup(
     name=package_name,
@@ -10,6 +29,7 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        *collect_data_files('hexapod', f'share/{package_name}/hexapod'),
     ],
     install_requires=['setuptools', 'rclpy', 'geometry_msgs'],
     zip_safe=True,
