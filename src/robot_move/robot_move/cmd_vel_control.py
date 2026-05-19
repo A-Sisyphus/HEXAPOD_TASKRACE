@@ -13,7 +13,7 @@ def _add_hexapod_path():
 	current_dir = Path(__file__).resolve().parent
 	hexapod_dir = current_dir.parent / 'hexapod' / 'hexapod1'
 	if str(hexapod_dir) not in sys.path:
-		sys.path.append(str(hexapod_dir))
+		sys.path.insert(0, str(hexapod_dir))
 
 
 _add_hexapod_path()
