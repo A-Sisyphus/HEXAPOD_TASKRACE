@@ -7,8 +7,8 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 def generate_launch_description():
     # 获取与拼接默认路径
-    fishbot_navigation2_dir = get_package_share_directory(
-        'fishbot_navigation2')
+    hexapod_navigation2_dir = get_package_share_directory(
+        'hexapod_navigation2')
     nav2_bringup_dir = get_package_share_directory('nav2_bringup')
     rviz_config_dir = os.path.join(
         nav2_bringup_dir, 'rviz', 'nav2_default_view.rviz')
@@ -17,9 +17,9 @@ def generate_launch_description():
     use_sim_time = launch.substitutions.LaunchConfiguration(
         'use_sim_time', default='true')
     map_yaml_path = launch.substitutions.LaunchConfiguration(
-        'map', default=os.path.join(fishbot_navigation2_dir, 'maps', 'room.yaml'))
+        'map', default=os.path.join(hexapod_navigation2_dir, 'maps', 'place.yaml'))
     nav2_param_path = launch.substitutions.LaunchConfiguration(
-        'params_file', default=os.path.join(fishbot_navigation2_dir, 'config', 'nav2_params.yaml'))
+        'params_file', default=os.path.join(hexapod_navigation2_dir, 'config', 'nav2_params.yaml'))
 
     return launch.LaunchDescription([
         # 声明新的 Launch 参数

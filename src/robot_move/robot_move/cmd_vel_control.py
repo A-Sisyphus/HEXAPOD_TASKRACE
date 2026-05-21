@@ -26,9 +26,9 @@ class CmdVelControlNode(Node):
 		super().__init__('cmd_vel_control')
 
 		self.declare_parameter('cmd_vel_topic', '/cmd_vel')
-		self.declare_parameter('vx_scale', 1.0)
-		self.declare_parameter('vy_scale', 1.0)
-		self.declare_parameter('omega_scale', 1.0)
+		self.declare_parameter('vx_scale', 1000.0)
+		self.declare_parameter('vy_scale', 1000.0)
+		self.declare_parameter('omega_scale', 1000.0)
 		self.declare_parameter('cmd_timeout', 0.5)
 		self.declare_parameter('publish_rate_hz', 20.0)
 
