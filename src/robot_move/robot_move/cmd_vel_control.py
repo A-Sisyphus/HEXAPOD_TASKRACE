@@ -101,7 +101,7 @@ class CmdVelControlNode(Node):
 def main(args=None):
 	rclpy.init(args=args)
 	node = CmdVelControlNode()
-
+	pd.set_body_pos(0, 0, 130)
 	try:
 		rclpy.spin(node)
 	except KeyboardInterrupt:

@@ -30,7 +30,7 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
     ],
-    install_requires=['setuptools', 'rclpy', 'geometry_msgs'],
+    install_requires=['setuptools', 'rclpy', 'geometry_msgs','std_msgs'],
     zip_safe=True,
     maintainer='jetson',
     maintainer_email='123456@example.com',
@@ -40,6 +40,7 @@ setup(
     entry_points={
         'console_scripts': [
             'cmd_vel_control = robot_move.cmd_vel_control:main',
+            'hexapod_control = robot_move.hexapod_control:main',
         ],
     },
 )
