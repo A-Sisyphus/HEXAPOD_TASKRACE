@@ -31,12 +31,18 @@ class CmdVelControlNode(Node):
 		self.declare_parameter('omega_scale', 1000.0)
 		self.declare_parameter('cmd_timeout', 0.5)
 		self.declare_parameter('publish_rate_hz', 20.0)
+		self.declare_parameter('separate_linear_angular', True)
+		self.declare_parameter('turn_priority_ratio', 0.7)
+		self.declare_parameter('cmd_deadband', 1.0)
 
 		self.cmd_vel_topic = self.get_parameter('cmd_vel_topic').value
 		self.vx_scale = float(self.get_parameter('vx_scale').value)
 		self.vy_scale = float(self.get_parameter('vy_scale').value)
 		self.omega_scale = float(self.get_parameter('omega_scale').value)
 		self.cmd_timeout = float(self.get_parameter('cmd_timeout').value)
+		self.separate_linear_angular = bool(self.get_parameter('separate_linear_angular').value)
+		self.turn_priority_ratio = float(self.get_parameter('turn_priority_ratio').value)
+		self.cmd_deadband = float(self.get_parameter('cmd_deadband').value)
 		publish_rate_hz = float(self.get_parameter('publish_rate_hz').value)
 		timer_period = 1.0 / publish_rate_hz if publish_rate_hz > 0.0 else 0.05
 
@@ -59,7 +65,9 @@ class CmdVelControlNode(Node):
 		self.get_logger().info(
 			f'Subscribed to {self.cmd_vel_topic}, scales: '
 			f'vx={self.vx_scale}, vy={self.vy_scale}, omega={self.omega_scale}; '
-			'mapping: Vx=-cmd.linear.y, Vy=cmd.linear.x, omega=cmd.angular.z'
+			'mapping: Vx=-cmd.linear.y, Vy=cmd.linear.x, omega=cmd.angular.z; '
+			f'separate_linear_angular={self.separate_linear_angular}, '
+			f'turn_priority_ratio={self.turn_priority_ratio}, deadband={self.cmd_deadband}'
 		)
 
 	def _start_motion_thread(self):
@@ -80,6 +88,18 @@ class CmdVelControlNode(Node):
 		vx = -float(msg.linear.y) * self.vx_scale
 		vy = float(msg.linear.x) * self.vy_scale
 		omega = float(msg.angular.z) * self.omega_scale
+
+		if self.separate_linear_angular:
+			linear_mag = max(abs(vx), abs(vy))
+			angular_mag = abs(omega)
+			if linear_mag > self.cmd_deadband and angular_mag > self.cmd_deadband:
+				if angular_mag >= self.turn_priority_ratio * linear_mag:
+					# Rotate in place when turn command dominates.
+					vx = 0.0
+					vy = 0.0
+				else:
+					# Keep translation and suppress rotation.
+					omega = 0.0
 
 		pd.set_velocity(vx, vy, omega)
 		self._last_cmd = (vx, vy, omega)
