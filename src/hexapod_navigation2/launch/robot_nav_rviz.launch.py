@@ -1,0 +1,38 @@
+import os
+
+from ament_index_python.packages import get_package_share_directory
+from launch import LaunchDescription
+from launch.actions import IncludeLaunchDescription, TimerAction
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch_ros.actions import Node
+
+
+def _include_launch(package_name: str, launch_file: str):
+    package_share = get_package_share_directory(package_name)
+    launch_path = os.path.join(package_share, 'launch', launch_file)
+    return IncludeLaunchDescription(PythonLaunchDescriptionSource(launch_path))
+
+
+def generate_launch_description():
+    hexapod_control_node = Node(
+        package='robot_move',
+        executable='hexapod_control',
+        name='hexapod_control',
+        output='screen',
+    )
+
+    lsn10_launch = _include_launch('lslidar_driver', 'lsn10_launch.py')
+    rf2o_launch = _include_launch('rf2o_laser_odometry', 'rf2o_laser_odometry.launch.py')
+    navigation2_launch = _include_launch('hexapod_navigation2', 'navigation2.launch.py')
+
+    return LaunchDescription([
+        hexapod_control_node,
+        TimerAction(
+            period=2.0,
+            actions=[lsn10_launch, rf2o_launch],
+        ),
+        TimerAction(
+            period=6.0,
+            actions=[navigation2_launch],
+        ),
+    ])

@@ -15,9 +15,9 @@ def generate_launch_description():
     
     # 创建 Launch 配置
     use_sim_time = launch.substitutions.LaunchConfiguration(
-        'use_sim_time', default='true')
+        'use_sim_time', default='false')
     map_yaml_path = launch.substitutions.LaunchConfiguration(
-        'map', default=os.path.join(hexapod_navigation2_dir, 'maps', 'place.yaml'))
+        'map', default=os.path.join(hexapod_navigation2_dir, 'maps', '421.yaml'))
     nav2_param_path = launch.substitutions.LaunchConfiguration(
         'params_file', default=os.path.join(hexapod_navigation2_dir, 'config', 'nav2_params.yaml'))
 
