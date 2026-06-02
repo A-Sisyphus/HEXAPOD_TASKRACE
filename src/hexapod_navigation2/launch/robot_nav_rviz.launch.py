@@ -19,6 +19,13 @@ def generate_launch_description():
         executable='hexapod_control',
         name='hexapod_control',
         output='screen',
+        parameters=[{
+            'separate_linear_angular': True,
+            'enter_rotate_factor': 1.5,
+            'exit_rotate_factor': 0.6,
+            'hysteresis_time_sec': 1.0,
+            'cmd_deadband': 1.0,
+        }],
     )
 
     lsn10_launch = _include_launch('lslidar_driver', 'lsn10_launch.py')
