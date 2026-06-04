@@ -12,10 +12,7 @@ from rclpy.node import Node
 from std_msgs.msg import Float32
 
 
-def body_height_callback(self, msg: Float32):
-    height = self._clamp_height(float(msg.data))
-    self._apply_body_height(height)
-    self.get_logger().info(f'Body height set to {height:.1f}')
+# (模块级占位函数已移除，实际回调在 HexapodControlNode 类中定义)
 
 def _add_hexapod_path():
     hexapod_spec = importlib.util.find_spec('hexapod.hexapod1')

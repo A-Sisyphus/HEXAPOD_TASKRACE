@@ -640,4 +640,4 @@ def set_step_mode():
     gait_prg.set_step_mode()
 
 def get_body_pos():
-    return gait_prg.set_body_pos()
+    return gait_prg.get_body_pos()
