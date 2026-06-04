@@ -171,7 +171,7 @@ controller_server:
     general_goal_checker:
       plugin: "nav2_controller::SimpleGoalChecker"
       xy_goal_tolerance: 0.25              # 位置容差 (m)
-      yaw_goal_tolerance: 0.25             # 朝向容差 (rad)
+      yaw_goal_tolerance: 0.052            # 朝向容差 (rad) ≈3°
       stateful: True                       # 分阶段：先位置、后朝向
 
     # ==================================================================
@@ -187,13 +187,13 @@ controller_server:
 
       # ---- RotationShim 参数 ----
       # 路径方向与机器人朝向偏差超过此阈值时触发原地旋转 (rad)
-      angular_dist_threshold: 0.4          # ~23°，确保直行前先对齐
+      angular_dist_threshold: 0.175        # ≈10°，小于此角度不触发旋转
 
       # 在路径上向前采样多远来计算目标朝向 (m)
       forward_sampling_distance: 0.5
 
       # 原地旋转时的角速度 (rad/s)
-      rotate_to_heading_angular_vel: 0.8
+      rotate_to_heading_angular_vel: 0.6
 
       # 旋转角加速度上限 (rad/s²)
       max_angular_accel: 3.2

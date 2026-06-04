@@ -157,7 +157,8 @@ class HexapodControlNode(Node):
             elif self._motion_state == MotionState.ROTATE and angular_mag < self.exit_rotate_factor * max(linear_mag, 0.01):
                 desired = MotionState.TRANSLATE
             else:
-                desired = MotionState.HYBRID
+                # Both present but neither dominates — hold current state
+                desired = self._motion_state
 
             # Hysteresis: only switch state after holding desired for hysteresis_time_sec
             if desired != self._motion_state:
@@ -173,13 +174,13 @@ class HexapodControlNode(Node):
             else:
                 self._state_entered_time = now
 
-            # Apply state-based suppression
+            # Apply state-based suppression — strictly one or the other
             if self._motion_state == MotionState.ROTATE:
                 vx = 0.0
                 vy = 0.0
-            elif self._motion_state == MotionState.TRANSLATE:
+            else:
+                # TRANSLATE or held state: never allow rotation during translation
                 omega = 0.0
-            # HYBRID: allow both (small simultaneous motions)
 
         pd.set_velocity(vx, vy, omega)
         self._last_cmd = (vx, vy, omega)
