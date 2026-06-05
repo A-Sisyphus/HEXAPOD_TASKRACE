@@ -34,7 +34,14 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
     ],
-    install_requires=['setuptools', 'rclpy', 'geometry_msgs','std_msgs'],
+    install_requires=[
+        'setuptools',
+        'rclpy',
+        'geometry_msgs',
+        'nav_msgs',
+        'std_msgs',
+        'yesense_interface',
+    ],
     zip_safe=True,
     maintainer='jetson',
     maintainer_email='123456@example.com',
@@ -45,6 +52,8 @@ setup(
         'console_scripts': [
             'cmd_vel_control = robot_move.cmd_vel_control:main',
             'hexapod_control = robot_move.hexapod_control:main',
+            'euler_yaw_to_pose = robot_move.euler_yaw_to_pose:main',
+            'odom_covariance_relay = robot_move.odom_covariance_relay:main',
         ],
     },
 )

@@ -171,72 +171,90 @@ controller_server:
     general_goal_checker:
       plugin: "nav2_controller::SimpleGoalChecker"
       xy_goal_tolerance: 0.25              # 位置容差 (m)
-      yaw_goal_tolerance: 0.052            # 朝向容差 (rad) ≈3°
+      yaw_goal_tolerance: 0.08            # 朝向容差 (rad)
       stateful: True                       # 分阶段：先位置、后朝向
 
     # ==================================================================
-    #  FollowPath ── RotationShimController + RegulatedPurePursuit
+    #  FollowPath ── RotationShimController + DWB (全向)
+    #  RotationShim 负责初始对齐（大角度原地转），
+    #  DWB 负责全向路径跟随（可输出 linear.y 横向移动）。
     # ==================================================================
     FollowPath:
       # ---- 外层: RotationShimController ----
-      # 职责：检测机器人朝向与路径方向的偏差，偏差过大时命令原地旋转
       plugin: "nav2_rotation_shim_controller::RotationShimController"
 
-      # 内层主控制器
-      primary_controller: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
+      # 内层主控制器：DWB 全向本地规划
+      primary_controller: "dwb_core::DWBLocalPlanner"
 
       # ---- RotationShim 参数 ----
-      # 路径方向与机器人朝向偏差超过此阈值时触发原地旋转 (rad)
-      angular_dist_threshold: 0.175        # ≈10°，小于此角度不触发旋转
+      angular_dist_threshold: 0.175        # ≈10°，小于此角度不触发原地旋转
 
-      # 在路径上向前采样多远来计算目标朝向 (m)
-      forward_sampling_distance: 0.5
+      forward_sampling_distance: 0.5       # 向前采样距离 (m)
 
-      # 原地旋转时的角速度 (rad/s)
-      rotate_to_heading_angular_vel: 0.6
+      rotate_to_heading_angular_vel: 0.2   # 原地旋转角速度 (rad/s)，降速防过冲
 
-      # 旋转角加速度上限 (rad/s²)
-      max_angular_accel: 3.2
+      max_angular_accel: 1.0               # 旋转角加速度上限 (rad/s²)，配合降速
 
-      # 模拟前瞻时间 (s)
-      simulate_ahead_time: 1.0
+      simulate_ahead_time: 1.0             # 模拟前瞻时间 (s)
 
-      # ---- RegulatedPurePursuit(RPP) 参数 ----
-      # 线速度设置
-      desired_linear_vel: 0.15             # 期望线速度 (m/s)，六足步态不宜太快
-      max_linear_vel: 0.15                 # 最大线速度
-      min_linear_vel: 0.02                 # 最小线速度（低于此值不输出）
+      # ---- DWB 全向参数 ----
+      # 速度范围：允许负向 Y 实现左右横移
+      min_vel_x: 0.0
+      max_vel_x: 0.15                      # 前向最大速度
+      min_vel_y: -0.15                     # 允许左/右全向平移
+      max_vel_y: 0.15
+      max_vel_theta: 0.2                   # DWB 层角速度上限（仅路径微调用）
 
-      # 角速度 —— RPP 本身只用小幅度角速度修正航向，
-      # 大幅转向已由 RotationShim 在地面完成，所以这里设小
-      lookahead_dist: 0.5                  # 前瞻距离 (m)
-      min_lookahead_dist: 0.3              # 最小前瞻距离
-      max_lookahead_dist: 0.8              # 最大前瞻距离
+      min_speed_xy: 0.0
+      max_speed_xy: 0.15
+      min_speed_theta: 0.0
 
-      # 速度限制
-      max_angular_vel: 0.15                # RPP 层角速度上限 (rad/s)，只做微调
-      min_approach_linear_vel: 0.05        # 接近目标时的最小线速度
+      # 加速度约束
+      acc_lim_x: 2.5
+      acc_lim_y: 2.5                       # 横向加速度（非零 = 全向）
+      acc_lim_theta: 1.5
+      decel_lim_x: -2.5
+      decel_lim_y: -2.5
+      decel_lim_theta: -1.5
 
-      # 接近目标行为
-      use_approach_linear_velocity_scaling: true   # 接近目标时减速
-      approach_velocity_scaling_dist: 1.0           # 从多远开始减速 (m)
-      max_allowed_time_to_collision_up_to_carrot: 1.0
+      # 采样密度
+      vx_samples: 20
+      vy_samples: 10                       # Y 向采样，支持横移
+      vtheta_samples: 15
 
-      # 不需要 RPP 做 rotate_to_heading（RotationShim 已处理）
-      use_rotate_to_heading: false
-      rotate_to_heading_min_angle: 0.785   # 仅作保险阈值 (45°)
-
-      # 其他
-      use_cost_regulated_linear_velocity_scaling: false
-      cost_scaling_dist: 0.3
-      cost_scaling_gain: 1.0
-      inflation_cost_scaling_factor: 3.0
-      regulated_linear_scaling_min_radius: 0.9
-      regulated_linear_scaling_min_speed: 0.025
-      use_fixed_curvature_lookahead: false
-      curvature_lookahead_dist: 0.25
-      use_collision_detection: true
+      # 模拟与粒度
+      sim_time: 1.7
+      linear_granularity: 0.05
+      angular_granularity: 0.025
       transform_tolerance: 0.5
+
+      # 停止判定
+      xy_goal_tolerance: 0.25
+      trans_stopped_velocity: 0.05         # 低于此即认为"停住"，避免误触发旋转
+
+      short_circuit_trajectory_evaluation: True
+      stateful: True
+
+      # ---- DWB Critics 权重（平移优先，旋转抑制） ----
+      critics:
+        - "RotateToGoal"
+        - "Oscillation"
+        - "BaseObstacle"
+        - "GoalAlign"
+        - "PathAlign"
+        - "PathDist"
+        - "GoalDist"
+
+      BaseObstacle.scale: 0.02
+      PathAlign.scale: 8.0
+      PathAlign.forward_point_distance: 0.1
+      GoalAlign.scale: 6.0
+      GoalAlign.forward_point_distance: 0.1
+      PathDist.scale: 8.0
+      GoalDist.scale: 6.0
+      RotateToGoal.scale: 4.0              # 进一步压低，平移优先
+      RotateToGoal.slowing_factor: 5.0
+      RotateToGoal.lookahead_time: -1.0
 
 
 # ========================================================================
