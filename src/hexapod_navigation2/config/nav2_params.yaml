@@ -170,8 +170,8 @@ controller_server:
     # 六足到达目标 XY 后自动原地旋转到目标朝向，避免直行+旋转混合
     general_goal_checker:
       plugin: "nav2_controller::SimpleGoalChecker"
-      xy_goal_tolerance: 0.25              # 位置容差 (m)
-      yaw_goal_tolerance: 0.08            # 朝向容差 (rad)
+      xy_goal_tolerance: 0.15              # 位置容差 (m)
+      yaw_goal_tolerance: 0.175            # 朝向容差 (rad)  1度=0.0175rad
       stateful: True                       # 分阶段：先位置、后朝向
 
     # ==================================================================
@@ -187,7 +187,7 @@ controller_server:
       primary_controller: "dwb_core::DWBLocalPlanner"
 
       # ---- RotationShim 参数 ----
-      angular_dist_threshold: 0.175        # ≈10°，小于此角度不触发原地旋转
+      angular_dist_threshold: 0.35        #小于此角度不触发原地旋转
 
       forward_sampling_distance: 0.5       # 向前采样距离 (m)
 
@@ -200,13 +200,13 @@ controller_server:
       # ---- DWB 全向参数 ----
       # 速度范围：允许负向 Y 实现左右横移
       min_vel_x: 0.0
-      max_vel_x: 0.15                      # 前向最大速度
-      min_vel_y: -0.15                     # 允许左/右全向平移
-      max_vel_y: 0.15
-      max_vel_theta: 0.2                   # DWB 层角速度上限（仅路径微调用）
+      max_vel_x: 0.20                      # 前向最大速度
+      min_vel_y: -0.20                     # 允许左/右全向平移
+      max_vel_y: 0.20
+      max_vel_theta: 0.0                   # DWB 层角速度上限
 
       min_speed_xy: 0.0
-      max_speed_xy: 0.15
+      max_speed_xy: 0.20
       min_speed_theta: 0.0
 
       # 加速度约束
@@ -229,7 +229,7 @@ controller_server:
       transform_tolerance: 0.5
 
       # 停止判定
-      xy_goal_tolerance: 0.25
+      xy_goal_tolerance: 0.15
       trans_stopped_velocity: 0.05         # 低于此即认为"停住"，避免误触发旋转
 
       short_circuit_trajectory_evaluation: True
@@ -248,12 +248,12 @@ controller_server:
       BaseObstacle.scale: 0.02
       PathAlign.scale: 8.0
       PathAlign.forward_point_distance: 0.1
-      GoalAlign.scale: 6.0
+      GoalAlign.scale: 3.0                    # 降低朝向对齐进攻性，防过冲
       GoalAlign.forward_point_distance: 0.1
       PathDist.scale: 8.0
-      GoalDist.scale: 6.0
-      RotateToGoal.scale: 4.0              # 进一步压低，平移优先
-      RotateToGoal.slowing_factor: 5.0
+      GoalDist.scale: 3.0                     # 降低逼近目标进攻性，防冲过头
+      RotateToGoal.scale: 3.0                 # 进一步压低，平移优先
+      RotateToGoal.slowing_factor: 10.0       # 接近目标时更柔和减速，减少过冲震荡
       RotateToGoal.lookahead_time: -1.0
 
 
@@ -324,8 +324,8 @@ behavior_server:
     transform_tolerance: 0.1
     use_sim_time: false
     simulate_ahead_time: 2.0
-    max_rotational_vel: 1.0
-    min_rotational_vel: 0.4
+    max_rotational_vel: 0.15
+    min_rotational_vel: 0.05
     rotational_acc_lim: 3.2
 
 
@@ -378,7 +378,7 @@ local_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0
-        inflation_radius: 0.20            # 20cm 安全膨胀
+        inflation_radius: 0.10            #膨胀半径
 
       # ---- 静态层（订阅全局代价地图的静态地图） ----
       static_layer:
@@ -430,7 +430,7 @@ global_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0
-        inflation_radius: 0.20
+        inflation_radius: 0.10            #膨胀半径
 
       always_send_full_costmap: True
 
@@ -465,12 +465,12 @@ velocity_smoother:
     feedback: "OPEN_LOOP"
 
     # 速度范围 [vx, vy, vtheta]
-    max_velocity: [0.15, 0.20, 1.0]       # 线速度匹配 RPP 的 desired_linear_vel
-    min_velocity: [-0.15, -0.20, -1.0]    # 支持后退 & 反方向
+    max_velocity: [0.25, 0.25, 0.25]       # 线速度匹配 RPP 的 desired_linear_vel
+    min_velocity: [-0.25, -0.25, -0.25]    # 支持后退 & 反方向
 
     # 加速度上限
-    max_accel: [2.0, 2.0, 3.2]            # 六足加速度不宜过大
-    max_decel: [-2.0, -2.0, -3.2]
+    max_accel: [2.0, 2.0, 2.0]            # 六足加速度不宜过大
+    max_decel: [-2.0, -2.0, -2.0]
 
     odom_topic: "odom"
     odom_duration: 0.1
