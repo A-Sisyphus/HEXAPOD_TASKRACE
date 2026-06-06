@@ -58,6 +58,14 @@ def generate_launch_description():
         }],
     )
 
+    imu_static_tf = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        name='imu_static_tf',
+        arguments=['0', '0', '0', '3.14159', '0', '0', 'base_link', 'gyro_link'],
+        output='screen',
+    )
+
     ekf_node = Node(
         package='robot_localization',
         executable='ekf_node',
@@ -73,5 +81,6 @@ def generate_launch_description():
         rf2o_node,
         odom_covariance_relay,
         euler_yaw_to_pose,
+        imu_static_tf,
         ekf_node,
     ])

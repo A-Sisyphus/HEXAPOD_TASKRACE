@@ -43,7 +43,7 @@ def generate_launch_description():
             actions=[lsn10_launch, imu_launch],
         ),
         TimerAction(
-            period=3.0,
+            period=4.0,
             actions=[laser_imu_ekf_launch],
         ),
         TimerAction(
