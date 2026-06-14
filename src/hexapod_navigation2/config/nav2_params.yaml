@@ -165,7 +165,7 @@ controller_server:
     progress_checker:
       plugin: "nav2_controller::SimpleProgressChecker"
       required_movement_radius: 0.5       # 在此半径内必须有有效移动
-      movement_time_allowance: 10.0        # 允许多长时间内未达到要求仍认为有效（s），放宽以适应六足步态节奏
+      movement_time_allowance: 30.0        # 允许多长时间内未达到要求仍认为有效（s），放宽以适应原地旋转对齐
 
     # ---------- 目标检查器 (stateful) ----------
     # stateful=True: 先检查 XY 到位，再检查朝向；
@@ -189,7 +189,7 @@ controller_server:
       primary_controller: "dwb_core::DWBLocalPlanner"
 
       # ---- RotationShim 参数 ----
-      angular_dist_threshold: 0.13        # 必须 ≤ yaw_goal_tolerance，否则到点后无法完成最终朝向对齐
+      angular_dist_threshold: 0.15        # 必须 ≤ yaw_goal_tolerance，否则到点后无法完成最终朝向对齐
 
       forward_sampling_distance: 0.2       # 向前采样距离 (m)
 
@@ -222,7 +222,7 @@ controller_server:
       # 采样密度
       vx_samples: 20
       vy_samples: 10                       # Y 向采样，支持横移
-      vtheta_samples: 5                       # 减少旋转采样，避免直行段混入旋转
+      vtheta_samples: 10                      # 细化旋转采样，避免粗采样导致朝向对齐振荡
 
       # 模拟与粒度
       sim_time: 1.7
