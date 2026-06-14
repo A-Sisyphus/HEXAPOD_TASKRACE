@@ -75,6 +75,7 @@ bt_navigator:
     odom_topic: /odom
     bt_loop_duration: 10
     default_server_timeout: 20
+    # default_bt_xml_filename: "package://hexapod_navigation2/behavior_trees/navigate_through_poses_w_replanning_and_recovery.xml"
 
     # 使用默认行为树 XML（含重规划 + 恢复）
     # - navigate_to_pose_w_replanning_and_recovery.xml
@@ -131,6 +132,7 @@ bt_navigator:
 bt_navigator_navigate_through_poses_rclcpp_node:
   ros__parameters:
     use_sim_time: False
+#    default_bt_xml_filename: "package://hexapod_navigation2/behavior_trees/navigate_through_poses_w_replanning_and_recovery.xml"
 
 bt_navigator_navigate_to_pose_rclcpp_node:
   ros__parameters:
@@ -163,15 +165,15 @@ controller_server:
     progress_checker:
       plugin: "nav2_controller::SimpleProgressChecker"
       required_movement_radius: 0.5       # 在此半径内必须有有效移动
-      movement_time_allowance: 10.0        # 允许超时 (秒)
+      movement_time_allowance: 10.0        # 允许多长时间内未达到要求仍认为有效（s），放宽以适应六足步态节奏
 
     # ---------- 目标检查器 (stateful) ----------
     # stateful=True: 先检查 XY 到位，再检查朝向；
     # 六足到达目标 XY 后自动原地旋转到目标朝向，避免直行+旋转混合
     general_goal_checker:
       plugin: "nav2_controller::SimpleGoalChecker"
-      xy_goal_tolerance: 0.15              # 位置容差 (m)
-      yaw_goal_tolerance: 0.175            # 朝向容差 (rad)  1度=0.0175rad
+      xy_goal_tolerance: 0.10              # 位置容差 (m)，收紧以提高中途路点精度
+      yaw_goal_tolerance: 0.15            # 朝向容差 (rad)  1度=0.0175rad
       stateful: True                       # 分阶段：先位置、后朝向
 
     # ==================================================================
@@ -187,40 +189,40 @@ controller_server:
       primary_controller: "dwb_core::DWBLocalPlanner"
 
       # ---- RotationShim 参数 ----
-      angular_dist_threshold: 0.35        #小于此角度不触发原地旋转
+      angular_dist_threshold: 0.13        # 必须 ≤ yaw_goal_tolerance，否则到点后无法完成最终朝向对齐
 
-      forward_sampling_distance: 0.5       # 向前采样距离 (m)
+      forward_sampling_distance: 0.2       # 向前采样距离 (m)
 
-      rotate_to_heading_angular_vel: 0.2   # 原地旋转角速度 (rad/s)，降速防过冲
+      rotate_to_heading_angular_vel: 0.06  # 原地旋转角速度 (rad/s)，降速防过冲
 
-      max_angular_accel: 1.0               # 旋转角加速度上限 (rad/s²)，配合降速
+      max_angular_accel: 0.3               # 旋转角加速度上限 (rad/s²)，配合降速
 
       simulate_ahead_time: 1.0             # 模拟前瞻时间 (s)
 
       # ---- DWB 全向参数 ----
       # 速度范围：允许负向 Y 实现左右横移
       min_vel_x: 0.0
-      max_vel_x: 0.20                      # 前向最大速度
-      min_vel_y: -0.20                     # 允许左/右全向平移
-      max_vel_y: 0.20
-      max_vel_theta: 0.0                   # DWB 层角速度上限
+      max_vel_x: 0.06                      # 前向最大速度
+      min_vel_y: -0.06                     # 允许左/右全向平移
+      max_vel_y: 0.06
+      max_vel_theta: 0.06                   # 为最终朝向对齐开放旋转能力；直行段由 critic 权重保证不混入旋转
 
       min_speed_xy: 0.0
-      max_speed_xy: 0.20
+      max_speed_xy: 0.06
       min_speed_theta: 0.0
 
       # 加速度约束
       acc_lim_x: 2.5
       acc_lim_y: 2.5                       # 横向加速度（非零 = 全向）
-      acc_lim_theta: 1.5
+      acc_lim_theta: 0.45
       decel_lim_x: -2.5
       decel_lim_y: -2.5
-      decel_lim_theta: -1.5
+      decel_lim_theta: -0.45
 
       # 采样密度
       vx_samples: 20
       vy_samples: 10                       # Y 向采样，支持横移
-      vtheta_samples: 15
+      vtheta_samples: 5                       # 减少旋转采样，避免直行段混入旋转
 
       # 模拟与粒度
       sim_time: 1.7
@@ -229,31 +231,30 @@ controller_server:
       transform_tolerance: 0.5
 
       # 停止判定
-      xy_goal_tolerance: 0.15
-      trans_stopped_velocity: 0.05         # 低于此即认为"停住"，避免误触发旋转
+      xy_goal_tolerance: 0.10
+      trans_stopped_velocity: 0.02         # 低于此即认为"停住"，配合低速运行
 
       short_circuit_trajectory_evaluation: True
       stateful: True
 
-      # ---- DWB Critics 权重（平移优先，旋转抑制） ----
+      # ---- DWB Critics 权重 ----
+      # 策略：PathDist+GoalDist 权重远大于 RotateToGoal，直行段旋转轨迹永远选不上
+      #       到点后平移 critic 已满足 → RotateToGoal 成为唯一差异项 → 纯旋转对齐
       critics:
         - "RotateToGoal"
         - "Oscillation"
         - "BaseObstacle"
-        - "GoalAlign"
         - "PathAlign"
         - "PathDist"
         - "GoalDist"
 
       BaseObstacle.scale: 0.02
-      PathAlign.scale: 8.0
+      PathAlign.scale: 4.0                    # 进一步降低，减少朝向对齐分量
       PathAlign.forward_point_distance: 0.1
-      GoalAlign.scale: 3.0                    # 降低朝向对齐进攻性，防过冲
-      GoalAlign.forward_point_distance: 0.1
-      PathDist.scale: 8.0
-      GoalDist.scale: 3.0                     # 降低逼近目标进攻性，防冲过头
-      RotateToGoal.scale: 3.0                 # 进一步压低，平移优先
-      RotateToGoal.slowing_factor: 10.0       # 接近目标时更柔和减速，减少过冲震荡
+      PathDist.scale: 12.0                    # 大幅提高，纯位置跟踪主导直行
+      GoalDist.scale: 6.0                     # 提高，强化直行前进动力
+      RotateToGoal.scale: 1.0                 # 压低到最低，直行段无力干扰；到点后唯一差异项驱动旋转
+      RotateToGoal.slowing_factor: 3.0        # 更快完成最终对齐
       RotateToGoal.lookahead_time: -1.0
 
 
@@ -271,7 +272,7 @@ planner_server:
 
     GridBased:
       plugin: "nav2_navfn_planner/NavfnPlanner"
-      tolerance: 0.5                       # 目标容差 (m)
+      tolerance: 0.1                      # 目标容差 (m)，与 goal_checker 一致，避免中途点被"掠过"
       use_astar: true                      # A* 算法，效率优于 Dijkstra
       allow_unknown: true                  # 允许经过未知区域
 
@@ -324,9 +325,9 @@ behavior_server:
     transform_tolerance: 0.1
     use_sim_time: false
     simulate_ahead_time: 2.0
-    max_rotational_vel: 0.15
-    min_rotational_vel: 0.05
-    rotational_acc_lim: 3.2
+    max_rotational_vel: 0.045
+    min_rotational_vel: 0.015
+    rotational_acc_lim: 0.96
 
 
 # ========================================================================
@@ -343,12 +344,12 @@ local_costmap:
       rolling_window: true                # 滑动窗口模式
 
       # 代价地图尺寸 (m)
-      width: 3
-      height: 3
+      width: 1
+      height: 1
       resolution: 0.05                    # 5cm 分辨率
 
       # 机器人轮廓
-      robot_radius: 0.40                  # 六足半径约 40cm
+      robot_radius: 0.10                  # 六足半径约 40cm
 
       plugins: ["voxel_layer", "inflation_layer"]
 
@@ -399,7 +400,7 @@ global_costmap:
       global_frame: map
       robot_base_frame: base_link
       use_sim_time: False
-      robot_radius: 0.40
+      robot_radius: 0.10
       resolution: 0.05
       track_unknown_space: true
 
@@ -465,12 +466,12 @@ velocity_smoother:
     feedback: "OPEN_LOOP"
 
     # 速度范围 [vx, vy, vtheta]
-    max_velocity: [0.25, 0.25, 0.25]       # 线速度匹配 RPP 的 desired_linear_vel
-    min_velocity: [-0.25, -0.25, -0.25]    # 支持后退 & 反方向
+    max_velocity: [0.07, 0.07, 0.07]    # 线速度匹配 RPP 的 desired_linear_vel
+    min_velocity: [-0.07, -0.07, -0.07] # 支持后退 & 反方向
 
     # 加速度上限
-    max_accel: [2.0, 2.0, 2.0]            # 六足加速度不宜过大
-    max_decel: [-2.0, -2.0, -2.0]
+    max_accel: [0.6, 0.6, 0.6]             # 六足加速度不宜过大
+    max_decel: [-0.6, -0.6, -0.6]
 
     odom_topic: "odom"
     odom_duration: 0.1
@@ -490,7 +491,7 @@ waypoint_follower:
     wait_at_waypoint:
       plugin: "nav2_waypoint_follower::WaitAtWaypoint"
       enabled: True
-      waypoint_pause_duration: 200
+      waypoint_pause_duration: 3            # 每个路点停靠时间 (秒)
 
 
 # ========================================================================
