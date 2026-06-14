@@ -162,10 +162,13 @@ controller_server:
     controller_plugins: ["FollowPath"]
 
     # ---------- 进度检查器 ----------
+    # 六足旋转阶段零平移是正常行为，不能用大半径检查误判"卡死"
+    # required_movement_radius 设极小值：旋转中六足必然有微小漂移即可通过
+    # movement_time_allowance 设大值：覆盖最极端 180° 旋转 (π/0.06≈52s)
     progress_checker:
       plugin: "nav2_controller::SimpleProgressChecker"
-      required_movement_radius: 0.5       # 在此半径内必须有有效移动
-      movement_time_allowance: 10.0        # 允许多长时间内未达到要求仍认为有效（s），放宽以适应六足步态节奏
+      required_movement_radius: 0.02       # 极小半径，旋转中的自然漂移即可满足
+      movement_time_allowance: 90.0        # 覆盖完整旋转阶段，避免过早触发恢复
 
     # ---------- 目标检查器 (stateful) ----------
     # stateful=True: 先检查 XY 到位，再检查朝向；
@@ -189,13 +192,16 @@ controller_server:
       primary_controller: "dwb_core::DWBLocalPlanner"
 
       # ---- RotationShim 参数 ----
-      angular_dist_threshold: 0.13        # 必须 ≤ yaw_goal_tolerance，否则到点后无法完成最终朝向对齐
+      # angular_dist_threshold 只控制 "旋转1"（路径初始对齐）的截止阈值
+      # 增大可减少初始旋转阶段的过冲振荡，让机器人尽早进入直行；
+      # 不影响 "旋转2"（到点后最终朝向对齐），后者由 stateful goal checker(0.15rad) 独立控制
+      angular_dist_threshold: 0.25        # 初始对齐阈值 (rad) ≈14.3°，松于 yaw_goal_tolerance
 
       forward_sampling_distance: 0.2       # 向前采样距离 (m)
 
-      rotate_to_heading_angular_vel: 0.06  # 原地旋转角速度 (rad/s)，降速防过冲
+      rotate_to_heading_angular_vel: 0.06  # 原地旋转角速度 (rad/s)
 
-      max_angular_accel: 0.3               # 旋转角加速度上限 (rad/s²)，配合降速
+      max_angular_accel: 0.3               # 旋转角加速度上限 (rad/s²)
 
       simulate_ahead_time: 1.0             # 模拟前瞻时间 (s)
 
@@ -466,7 +472,7 @@ velocity_smoother:
     feedback: "OPEN_LOOP"
 
     # 速度范围 [vx, vy, vtheta]
-    max_velocity: [0.07, 0.07, 0.07]    # 线速度匹配 RPP 的 desired_linear_vel
+    max_velocity: [0.07, 0.07, 0.07]    # 线速度匹配 DWB max_vel
     min_velocity: [-0.07, -0.07, -0.07] # 支持后退 & 反方向
 
     # 加速度上限

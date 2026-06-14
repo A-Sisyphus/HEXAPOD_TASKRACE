@@ -41,10 +41,9 @@ from hexapod.hexapod1 import Hexapod as pd
 
 
 class MotionState:
-    """Three-state hysteresis machine to decouple translation from rotation."""
+    """Two-state hysteresis machine to decouple translation from rotation."""
     TRANSLATE = 0   # prioritize translation, suppress rotation
     ROTATE = 1      # prioritize rotation, suppress translation
-    HYBRID = 2      # allow both (when both are small)
 
 
 class HexapodControlNode(Node):
@@ -64,7 +63,7 @@ class HexapodControlNode(Node):
         self.declare_parameter('separate_linear_angular', True)
         self.declare_parameter('enter_rotate_factor', 1.5)
         self.declare_parameter('exit_rotate_factor', 0.6)
-        self.declare_parameter('hysteresis_time_sec', 1.0)
+        self.declare_parameter('hysteresis_time_sec', 0.3)
         self.declare_parameter('cmd_deadband', 1.0)
 
         self.cmd_vel_topic = self.get_parameter('cmd_vel_topic').value
@@ -146,31 +145,48 @@ class HexapodControlNode(Node):
             angular_mag = abs(omega)
             now = self.get_clock().now()
 
-            # Determine desired state from velocity commands
-            if linear_mag <= self.cmd_deadband and angular_mag > self.cmd_deadband:
-                desired = MotionState.ROTATE
-            elif angular_mag <= self.cmd_deadband:
-                # No significant angular command → translate (or idle)
-                desired = MotionState.TRANSLATE
-            elif angular_mag > self.enter_rotate_factor * max(linear_mag, 0.01):
-                desired = MotionState.ROTATE
-            elif self._motion_state == MotionState.ROTATE and angular_mag < self.exit_rotate_factor * max(linear_mag, 0.01):
-                desired = MotionState.TRANSLATE
+            # ── Determine desired state ──
+            # ROTATE → TRANSLATE: aggressive exit (no hysteresis delay).
+            #   Any translation request while rotating means RotationShim has
+            #   handed off to DWB; residual rotation during hysteresis would
+            #   push heading error back above threshold → infinite oscillation.
+            # TRANSLATE → ROTATE: conservative entry (hysteresis applies).
+            #   Prevents spurious rotation from cmd_vel noise.
+            if self._motion_state == MotionState.ROTATE:
+                if linear_mag > self.cmd_deadband:
+                    desired = MotionState.TRANSLATE   # immediate exit
+                else:
+                    desired = MotionState.ROTATE
             else:
-                # Both present but neither dominates — hold current state
-                desired = self._motion_state
+                if linear_mag <= self.cmd_deadband and angular_mag > self.cmd_deadband:
+                    desired = MotionState.ROTATE       # pure rotation requested
+                elif angular_mag > self.enter_rotate_factor * max(linear_mag, 0.01):
+                    desired = MotionState.ROTATE       # rotation dominates
+                else:
+                    desired = MotionState.TRANSLATE
 
-            # Hysteresis: only switch state after holding desired for hysteresis_time_sec
+            # ── Apply state transition ──
             if desired != self._motion_state:
-                elapsed = (now - self._state_entered_time).nanoseconds * 1e-9
-                if elapsed >= self.hysteresis_time_sec:
+                if desired == MotionState.TRANSLATE:
+                    # ROTATE → TRANSLATE: immediate (no hysteresis)
                     old_state = self._motion_state
-                    self._motion_state = desired
+                    self._motion_state = MotionState.TRANSLATE
                     self._state_entered_time = now
-                    state_names = {0: 'TRANSLATE', 1: 'ROTATE', 2: 'HYBRID'}
+                    state_names = {0: 'TRANSLATE', 1: 'ROTATE'}
                     self.get_logger().info(
-                        f'Motion state: {state_names[old_state]} → {state_names[desired]}'
+                        f'Motion state: {state_names[old_state]} → TRANSLATE (immediate)'
                     )
+                else:
+                    # TRANSLATE → ROTATE: hysteresis to filter noise
+                    elapsed = (now - self._state_entered_time).nanoseconds * 1e-9
+                    if elapsed >= self.hysteresis_time_sec:
+                        old_state = self._motion_state
+                        self._motion_state = MotionState.ROTATE
+                        self._state_entered_time = now
+                        state_names = {0: 'TRANSLATE', 1: 'ROTATE'}
+                        self.get_logger().info(
+                            f'Motion state: {state_names[old_state]} → ROTATE'
+                        )
             else:
                 self._state_entered_time = now
 
@@ -179,7 +195,7 @@ class HexapodControlNode(Node):
                 vx = 0.0
                 vy = 0.0
             else:
-                # TRANSLATE or held state: never allow rotation during translation
+                # TRANSLATE: never allow rotation during translation
                 omega = 0.0
 
         pd.set_velocity(vx, vy, omega)
