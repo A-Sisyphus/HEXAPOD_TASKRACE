@@ -8,6 +8,7 @@ import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped
 from nav2_simple_commander.robot_navigator import BasicNavigator, TaskResult
+from std_msgs.msg import Float32
 from tf_transformations import quaternion_from_euler
 
 
@@ -19,10 +20,15 @@ class AutoWaypointNode(BasicNavigator):
         self.declare_parameter('initial_point', [0.0, 0.0, 0.0])
         self.declare_parameter('target_points', [0.0, 0.0, 0.0])
         self.declare_parameter('max_retries', 3)
+        self.declare_parameter('body_height_topic', '/hexapod/body_height')
 
         self.initial_point_ = self.get_parameter('initial_point').value
         self.target_points_ = self.get_parameter('target_points').value
         self.max_retries_ = self.get_parameter('max_retries').value
+        self.body_height_topic_ = self.get_parameter('body_height_topic').value
+
+        self.body_height_pub_ = self.create_publisher(
+            Float32, self.body_height_topic_, 10)
 
         self.get_logger().info(f'初始位姿: {self.initial_point_}')
         self.get_logger().info(f'目标路点原始数据长度: {len(self.target_points_)}')
@@ -141,12 +147,26 @@ def main():
     failed = 0
     total = len(target_points)
 
+    # 路点到达后的身体高度映射
+    waypoint_height_map = {
+        2: 50.0,   # 到达路点2时身体高度设为50
+        3: 130.0,  # 到达路点3时身体高度设为130
+    }
+
     for i, (x, y, yaw) in enumerate(target_points):
         node.get_logger().info(
             f'===== 路点 {i}/{total - 1}: ({x:.2f}, {y:.2f}, {yaw:.2f}) =====')
         target_pose = node.get_pose_by_xyyaw(x, y, yaw)
         if node.nav_to_pose_with_retry(target_pose, i):
             succeeded += 1
+            # 到达路点后设置身体高度
+            if i in waypoint_height_map:
+                height = waypoint_height_map[i]
+                height_msg = Float32()
+                height_msg.data = height
+                node.body_height_pub_.publish(height_msg)
+                node.get_logger().info(
+                    f'已发布身体高度命令: {height:.1f} mm (路点 {i})')
         else:
             failed += 1
 
