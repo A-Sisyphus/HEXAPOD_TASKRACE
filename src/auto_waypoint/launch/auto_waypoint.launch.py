@@ -18,7 +18,7 @@ def generate_launch_description():
 
     # 声明参数
     params_file = LaunchConfiguration('params_file', default=os.path.join(
-        pkg_share, 'config', 'waypoint_config.yaml'))
+        pkg_share, 'config', 'waypoint_config2.yaml'))
     use_sim_time = LaunchConfiguration('use_sim_time', default='false')
 
     return LaunchDescription([

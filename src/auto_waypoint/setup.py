@@ -29,6 +29,7 @@ setup(
     entry_points={
         'console_scripts': [
             'auto_waypoint_node = auto_waypoint.auto_waypoint_node:main',
+            'waypoint_selector = auto_waypoint.waypoint_selector:main',
         ],
     },
 )

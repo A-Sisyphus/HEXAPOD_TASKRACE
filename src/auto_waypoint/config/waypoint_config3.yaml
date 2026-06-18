@@ -2,7 +2,6 @@ auto_waypoint_node:
   ros__parameters:
     initial_point: [0.0, 0.0, 0.0]
     target_points: [
-      0.0,0.0,0.0,
       0.7,0.0,0.0,
       1.2,0.25,0.0,
       2.2,0.25,0.0,

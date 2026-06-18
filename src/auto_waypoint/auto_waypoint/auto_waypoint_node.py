@@ -187,8 +187,8 @@ def main():
 
     # 路点到达后的身体高度映射
     waypoint_height_map = {
-        2: 50.0,   # 到达路点2时身体高度设为50
-        3: 130.0,  # 到达路点3时身体高度设为130
+        1: 50.0,   # 到达路点2时身体高度设为50
+        2: 130.0,  # 到达路点3时身体高度设为130
     }
 
     for i, (x, y, yaw) in enumerate(target_points):
@@ -207,20 +207,20 @@ def main():
                     f'已发布身体高度命令: {height:.1f} mm (路点 {i})')
 
             # 到达路点后的夹爪动作
-            if i == 2:
+            if i == 1:
                 pick_up()
                 node.get_logger().info('路点 2: 执行 pick_up (夹爪抓取)')
-            elif i == 6:
+            elif i == 5:
                 put_down()
                 node.get_logger().info('路点 6: 执行 put_down (夹爪释放)')
 
             # 路点 4 到达后：放宽 RotationShim，下一段允许倒退
-            if i == 4:
+            if i == 3:
                 node.set_rotation_shim_threshold(3.14)
                 node.get_logger().info('路点 4: 已放宽 angular_dist_threshold → 3.14 (允许倒退)')
 
             # 路点 5 到达后：恢复 RotationShim 正常阈值
-            if i == 5:
+            if i == 4:
                 node.set_rotation_shim_threshold(0.25)
                 node.get_logger().info('路点 5: 已恢复 angular_dist_threshold → 0.25')
         else:
