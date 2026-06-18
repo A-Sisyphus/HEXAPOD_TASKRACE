@@ -10,7 +10,9 @@ from geometry_msgs.msg import PoseStamped
 from nav2_simple_commander.robot_navigator import BasicNavigator, TaskResult
 from std_msgs.msg import Float32
 from tf_transformations import quaternion_from_euler
-
+from auto_waypoint.gpio_control import pick_up, put_down
+from rcl_interfaces.srv import SetParameters
+from rcl_interfaces.msg import Parameter, ParameterValue, ParameterType
 
 class AutoWaypointNode(BasicNavigator):
     def __init__(self, node_name='auto_waypoint_node'):
@@ -29,6 +31,10 @@ class AutoWaypointNode(BasicNavigator):
 
         self.body_height_pub_ = self.create_publisher(
             Float32, self.body_height_topic_, 10)
+
+        # 动态参数客户端（修改 controller_server 参数用）
+        self.param_client_ = self.create_client(
+            SetParameters, '/controller_server/set_parameters')
 
         self.get_logger().info(f'初始位姿: {self.initial_point_}')
         self.get_logger().info(f'目标路点原始数据长度: {len(self.target_points_)}')
@@ -82,6 +88,38 @@ class AutoWaypointNode(BasicNavigator):
         self.setInitialPose(init_pose)
         self.waitUntilNav2Active()
         self.get_logger().info('Nav2 已激活，初始位姿设置完成')
+
+    # ======================== 动态参数 ========================
+
+    def set_rotation_shim_threshold(self, value: float) -> bool:
+        """动态修改 controller_server 的 angular_dist_threshold"""
+        if not self.param_client_.wait_for_service(timeout_sec=3.0):
+            self.get_logger().error('无法连接 controller_server 参数服务')
+            return False
+
+        param = Parameter()
+        param.name = 'FollowPath.angular_dist_threshold'
+        param.value.type = ParameterType.PARAMETER_DOUBLE
+        param.value.double_value = value
+
+        req = SetParameters.Request()
+        req.parameters = [param]
+
+        future = self.param_client_.call_async(req)
+        rclpy.spin_until_future_complete(self, future, timeout_sec=3.0)
+
+        if future.result() is not None:
+            results = future.result().results
+            if results and results[0].successful:
+                self.get_logger().info(
+                    f'已设置 angular_dist_threshold = {value:.2f}')
+                return True
+            else:
+                self.get_logger().error(
+                    f'设置 angular_dist_threshold 失败: {results[0].reason if results else "无响应"}')
+                return False
+        self.get_logger().error('设置 angular_dist_threshold 超时')
+        return False
 
     def nav_to_pose_with_retry(self, target_pose: PoseStamped,
                                waypoint_index: int) -> bool:
@@ -167,6 +205,24 @@ def main():
                 node.body_height_pub_.publish(height_msg)
                 node.get_logger().info(
                     f'已发布身体高度命令: {height:.1f} mm (路点 {i})')
+
+            # 到达路点后的夹爪动作
+            if i == 2:
+                pick_up()
+                node.get_logger().info('路点 2: 执行 pick_up (夹爪抓取)')
+            elif i == 6:
+                put_down()
+                node.get_logger().info('路点 6: 执行 put_down (夹爪释放)')
+
+            # 路点 4 到达后：放宽 RotationShim，下一段允许倒退
+            if i == 4:
+                node.set_rotation_shim_threshold(3.14)
+                node.get_logger().info('路点 4: 已放宽 angular_dist_threshold → 3.14 (允许倒退)')
+
+            # 路点 5 到达后：恢复 RotationShim 正常阈值
+            if i == 5:
+                node.set_rotation_shim_threshold(0.25)
+                node.get_logger().info('路点 5: 已恢复 angular_dist_threshold → 0.25')
         else:
             failed += 1
 

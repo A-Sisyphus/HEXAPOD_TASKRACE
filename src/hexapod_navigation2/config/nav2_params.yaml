@@ -206,8 +206,8 @@ controller_server:
       simulate_ahead_time: 1.0             # 模拟前瞻时间 (s)
 
       # ---- DWB 全向参数 ----
-      # 速度范围：允许负向 Y 实现左右横移
-      min_vel_x: 0.0
+      # 速度范围：允许负向 X/Y 实现全向倒车
+      min_vel_x: -0.06
       max_vel_x: 0.06                      # 前向最大速度
       min_vel_y: -0.06                     # 允许左/右全向平移
       max_vel_y: 0.06
