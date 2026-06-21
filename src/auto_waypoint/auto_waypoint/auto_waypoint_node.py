@@ -4,6 +4,10 @@
 从 waypoint_config.yaml 读取初始位姿与目标路点，按顺序导航，
 支持失败重试后跳过，单次遍历完成后退出。
 """
+import os
+import subprocess
+import signal
+
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped
@@ -23,11 +27,13 @@ class AutoWaypointNode(BasicNavigator):
         self.declare_parameter('target_points', [0.0, 0.0, 0.0])
         self.declare_parameter('max_retries', 3)
         self.declare_parameter('body_height_topic', '/hexapod/body_height')
+        self.declare_parameter('config_index', 0)
 
         self.initial_point_ = self.get_parameter('initial_point').value
         self.target_points_ = self.get_parameter('target_points').value
         self.max_retries_ = self.get_parameter('max_retries').value
         self.body_height_topic_ = self.get_parameter('body_height_topic').value
+        self.config_index_ = self.get_parameter('config_index').value
 
         self.body_height_pub_ = self.create_publisher(
             Float32, self.body_height_topic_, 10)
@@ -36,9 +42,13 @@ class AutoWaypointNode(BasicNavigator):
         self.param_client_ = self.create_client(
             SetParameters, '/controller_server/set_parameters')
 
+        # 弹窗子进程句柄
+        self.popup_process_ = None
+
         self.get_logger().info(f'初始位姿: {self.initial_point_}')
         self.get_logger().info(f'目标路点原始数据长度: {len(self.target_points_)}')
         self.get_logger().info(f'最大重试次数: {self.max_retries_}')
+        self.get_logger().info(f'路径编号: {self.config_index_}')
 
     # ======================== 工具方法 ========================
 
@@ -120,6 +130,52 @@ class AutoWaypointNode(BasicNavigator):
                 return False
         self.get_logger().error('设置 angular_dist_threshold 超时')
         return False
+
+    # ======================== 弹窗 ========================
+
+    def _show_waypoint_popup(self):
+        """启动路径编号弹窗子进程（仅在尚未启动时调用）"""
+        if self.popup_process_ is not None:
+            return
+
+        script = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            'waypoint_popup.py')
+
+        if not os.path.isfile(script):
+            self.get_logger().error(f'弹窗脚本不存在: {script}')
+            return
+
+        try:
+            self.popup_process_ = subprocess.Popen(
+                ['python3', script, str(self.config_index_)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            self.get_logger().info(
+                f'已启动路径编号弹窗 (PID={self.popup_process_.pid}, '
+                f'编号={self.config_index_})')
+        except Exception as e:
+            self.get_logger().error(f'启动弹窗失败: {e}')
+
+    def _close_waypoint_popup(self):
+        """关闭弹窗子进程"""
+        if self.popup_process_ is None:
+            return
+        try:
+            self.popup_process_.send_signal(signal.SIGTERM)
+            self.popup_process_.wait(timeout=3.0)
+            self.get_logger().info('已关闭路径编号弹窗')
+        except subprocess.TimeoutExpired:
+            self.popup_process_.kill()
+            self.popup_process_.wait()
+            self.get_logger().warn('弹窗进程未响应 SIGTERM，已强制 kill')
+        except Exception as e:
+            self.get_logger().error(f'关闭弹窗时出错: {e}')
+        finally:
+            self.popup_process_ = None
+
+    # ======================== 导航逻辑 ========================
 
     def nav_to_pose_with_retry(self, target_pose: PoseStamped,
                                waypoint_index: int) -> bool:
@@ -210,6 +266,8 @@ def main():
             if i == 1:
                 pick_up()
                 node.get_logger().info('路点 2: 执行 pick_up (夹爪抓取)')
+                # 弹出路径编号弹窗
+                node._show_waypoint_popup()
             elif i == 5:
                 put_down()
                 node.get_logger().info('路点 6: 执行 put_down (夹爪释放)')
@@ -232,6 +290,9 @@ def main():
     node.get_logger().info(f'成功: {succeeded}')
     node.get_logger().info(f'失败/跳过: {failed}')
     node.get_logger().info('==================================================')
+
+    # 5. 关闭弹窗
+    node._close_waypoint_popup()
 
     rclpy.shutdown()
 

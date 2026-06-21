@@ -20,10 +20,10 @@ CONFIG_FILES = [
 ]
 
 CONFIG_LABELS = [
-    '路径 0 - 右侧巡逻 (y≈1.05)',
-    '路径 1 - 直行右偏 (y≈0.25)',
-    '路径 2 - 左侧巡逻 (y≈-0.65)',
-    '路径 3 - 远端左侧 (y≈-1.45)',
+    'A',
+    'B',
+    'C',
+    'D',
 ]
 
 
@@ -54,7 +54,7 @@ def show_terminal_selector():
 
     print()
     print('=' * 50)
-    print('        路 点 路 径 选 择 器')
+    print('        ROBOCON 任务赛系统')
     print('=' * 50)
     for i, label in enumerate(CONFIG_LABELS):
         print(f'  [{i}] {label}')
@@ -79,83 +79,168 @@ def show_terminal_selector():
             sys.exit(0)
 
 
-# ======================== Tkinter GUI ========================
+# ======================== Tkinter GUI（触摸屏优化版）======================
+
+# 路径按钮颜色（4 种区分色）
+PATH_COLORS = ['#3498db', '#2ecc71', '#e67e22', '#9b59b6']
+PATH_COLORS_SELECTED = ['#1a5276', '#1a7a3a', '#935116', '#5b2c6f']
+
+# 路径编号（按钮上显示）
+PATH_NUMS = ['A', 'B', 'C', 'D']
+
 
 def show_gui_selector():
-    """Tkinter 图形化路径选择器"""
+    """Tkinter 图形化路径选择器（触摸屏优化）"""
     import tkinter as tk
-    from tkinter import ttk
 
     config_dir = _get_config_dir()
 
-    # 主窗口
+    # ---- 主窗口（全屏）----
     root = tk.Tk()
-    root.title('路点路径选择器')
-    root.geometry('420x380')
+    root.title('ROBOCON任务赛系统')
+    root.configure(bg='#ecf0f1')
+
+    # 获取屏幕尺寸，窗口占屏幕 95%
+    sw = root.winfo_screenwidth()
+    sh = root.winfo_screenheight()
+    ww = int(sw * 0.95)
+    wh = int(sh * 0.95)
+    wx = (sw - ww) // 2
+    wy = (sh - wh) // 2
+    root.geometry(f'{ww}x{wh}+{wx}+{wy}')
     root.resizable(False, False)
 
-    # 居中
-    root.update_idletasks()
-    w, h = root.winfo_width(), root.winfo_height()
-    x = (root.winfo_screenwidth() // 2) - (w // 2)
-    y = (root.winfo_screenheight() // 2) - (h // 2)
-    root.geometry(f'{w}x{h}+{x}+{y}')
+    # 按比例计算字体和尺寸
+    base_font_size = max(14, min(wh // 25, 32))
+    btn_font_size = max(40, min(wh // 8, 80))
+    confirm_font_size = max(28, min(wh // 15, 48))
+    status_font_size = max(18, min(wh // 30, 28))
 
     selected_var = tk.StringVar(value=CONFIG_FILES[0])
 
-    # 标题
-    ttk.Label(
-        root, text='请选择导航路径',
-        font=('Arial', 16, 'bold')
-    ).pack(pady=15)
-
-    # Radio 选项区
-    radio_frame = ttk.LabelFrame(root, text='可用路径', padding=10)
-    radio_frame.pack(pady=5, padx=25, fill='x')
-
-    for name, label in zip(CONFIG_FILES, CONFIG_LABELS):
-        ttk.Radiobutton(
-            radio_frame,
-            text=label,
-            variable=selected_var,
-            value=name,
-        ).pack(anchor='w', pady=4, padx=5)
-
-    # 状态提示
-    status_var = tk.StringVar(value='')
-    status_label = ttk.Label(
-        root, textvariable=status_var,
-        foreground='gray', font=('Arial', 10))
-    status_label.pack(pady=8)
-
     result = {'path': None}
+
+    # ---- 标题 ----
+    title_label = tk.Label(
+        root, text='ROBOCON 任务赛系统',
+        font=('Arial', base_font_size + 8, 'bold'),
+        bg='#ecf0f1', fg='#2c3e50')
+    title_label.pack(pady=int(wh * 0.04))
+
+    # ---- 4 个路径大按钮（水平排列）----
+    path_buttons_frame = tk.Frame(root, bg='#ecf0f1')
+    path_buttons_frame.pack(
+        expand=True, fill='both',
+        padx=int(ww * 0.03), pady=int(wh * 0.02))
+
+    # 让 4 个按钮等分宽度
+    for i in range(4):
+        path_buttons_frame.columnconfigure(i, weight=1, uniform='path')
+    path_buttons_frame.rowconfigure(0, weight=1)
+
+    path_btns = []
+
+    def select_path(idx):
+        """选中某个路径，更新按钮样式"""
+        selected_var.set(CONFIG_FILES[idx])
+        for j, btn in enumerate(path_btns):
+            if j == idx:
+                btn.configure(
+                    bg=PATH_COLORS_SELECTED[j],
+                    fg='white',
+                    relief='sunken',
+                    bd=6)
+            else:
+                btn.configure(
+                    bg=PATH_COLORS[j],
+                    fg='white',
+                    relief='raised',
+                    bd=3)
+
+    for i in range(4):
+        btn = tk.Button(
+            path_buttons_frame,
+            text=PATH_NUMS[i],
+            font=('Arial', btn_font_size, 'bold'),
+            bg=PATH_COLORS[i],
+            fg='white',
+            activebackground=PATH_COLORS_SELECTED[i],
+            activeforeground='white',
+            relief='raised',
+            bd=3,
+            cursor='hand2',
+            command=lambda idx=i: select_path(idx),
+        )
+        btn.grid(row=0, column=i, sticky='nsew', padx=int(ww * 0.01), pady=int(wh * 0.01))
+        path_btns.append(btn)
+
+    # 默认选中第 0 个
+    select_path(0)
+
+    # ---- 状态提示 ----
+    status_var = tk.StringVar(
+        value=f'当前选择: {CONFIG_LABELS[0]}')
+    status_label = tk.Label(
+        root, textvariable=status_var,
+        font=('Arial', status_font_size),
+        bg='#ecf0f1', fg='#2c3e50')
+    status_label.pack(pady=int(wh * 0.02))
+
+    # 更新状态的回调
+    def on_path_changed(*args):
+        selected = selected_var.get()
+        if selected in CONFIG_FILES:
+            idx = CONFIG_FILES.index(selected)
+            status_var.set(f'当前选择: {CONFIG_LABELS[idx]}')
+            select_path(idx)
+
+    selected_var.trace_add('write', on_path_changed)
+
+    # ---- 确定 / 取消按钮 ----
+    action_frame = tk.Frame(root, bg='#ecf0f1')
+    action_frame.pack(pady=int(wh * 0.03), padx=int(ww * 0.05), fill='x')
 
     def on_confirm():
         selected = selected_var.get()
         config_path = os.path.join(config_dir, selected)
         result['path'] = config_path
-        print(f'已选择: {CONFIG_LABELS[CONFIG_FILES.index(selected)]}')
+        idx = CONFIG_FILES.index(selected)
+        print(f'已选择: {CONFIG_LABELS[idx]}')
         root.destroy()
 
     def on_cancel():
         root.destroy()
         sys.exit(0)
 
-    # 按钮区
-    button_frame = ttk.Frame(root)
-    button_frame.pack(pady=15)
+    # 确定按钮（占 2/3 宽度）
+    confirm_btn = tk.Button(
+        action_frame,
+        text='确  定',
+        font=('Arial', confirm_font_size, 'bold'),
+        bg='#27ae60', fg='white',
+        activebackground='#1e8449', activeforeground='white',
+        relief='raised', bd=3,
+        cursor='hand2',
+        command=on_confirm,
+    )
+    confirm_btn.pack(side='left', expand=True, fill='both',
+                     padx=(0, int(ww * 0.01)), ipady=int(wh * 0.02))
 
-    ttk.Button(
-        button_frame, text='✓  确 定',
-        command=on_confirm, width=12
-    ).pack(side='left', padx=10)
+    # 取消按钮（占 1/3 宽度）
+    cancel_btn = tk.Button(
+        action_frame,
+        text='取  消',
+        font=('Arial', confirm_font_size, 'bold'),
+        bg='#7f8c8d', fg='white',
+        activebackground='#616a6b', activeforeground='white',
+        relief='raised', bd=3,
+        cursor='hand2',
+        command=on_cancel,
+    )
+    cancel_btn.pack(side='left', expand=True, fill='both',
+                    padx=(int(ww * 0.01), 0), ipady=int(wh * 0.02))
 
-    ttk.Button(
-        button_frame, text='✗  取 消',
-        command=on_cancel, width=12
-    ).pack(side='left', padx=10)
-
-    # 关闭窗口 = 取消
+    # ---- 关闭窗口 = 取消 ----
     root.protocol('WM_DELETE_WINDOW', on_cancel)
 
     # 让窗口获得焦点

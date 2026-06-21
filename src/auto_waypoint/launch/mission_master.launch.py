@@ -103,8 +103,20 @@ def _select_and_launch(context, *args, **kwargs):
         print('[Mission Master] 用户取消，不启动导航')
         return []
 
+    # 从配置文件名中提取编号（waypoint_config2.yaml → 2）
+    config_name = os.path.basename(selected_config)  # 'waypoint_config2.yaml'
+    config_index = 0
+    try:
+        # 提取 "waypoint_config" 和 ".yaml" 之间的数字
+        core = config_name.replace('waypoint_config', '').replace('.yaml', '')
+        config_index = int(core)
+    except ValueError:
+        print(f'[Mission Master] 警告: 无法从 {config_name} 提取编号，'
+              f'使用默认值 {config_index}')
+
     print(f'[Mission Master] 启动 auto_waypoint_node')
     print(f'  配置文件: {selected_config}')
+    print(f'  路径编号: {config_index}')
 
     return [
         Node(
@@ -112,7 +124,11 @@ def _select_and_launch(context, *args, **kwargs):
             executable='auto_waypoint_node',
             name='auto_waypoint_node',
             output='screen',
-            parameters=[selected_config, {'use_sim_time': False}],
+            parameters=[
+                selected_config,
+                {'use_sim_time': False,
+                 'config_index': config_index},
+            ],
         ),
     ]
 
